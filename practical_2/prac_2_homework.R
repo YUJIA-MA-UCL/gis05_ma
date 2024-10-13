@@ -1,0 +1,135 @@
+#任务是将一些非空间数据连接到一些空间数据并进行处理。
+#您需要计算每个县达到要求标准的理科学生（全部）年级的平均百分比，并制作一张地图
+#来显示全国平均水平高于或低于华盛顿州平均水平的地方
+#提示：不要尝试从 % 符号中拉出数字，您有预计参加考试的学生人数和达到标准的学生人
+#数，因此您可以计算出百分比
+#You need calculate the average percent of science students (in all) grades per 
+#county meeting the required standards and produce a map to show where the 
+#Country averages are above or below the State of Washington average.
+
+
+#wang the data in straight from the web using read_csv
+WashingtonDataOSK<- read.csv("/Users/yujiama/casa/casa05/practical-2/practical_2/prac2homework_data/county_only.csv", 
+                             header = TRUE, 
+                             sep = ",",  
+                             encoding = "latin1")
+library(here)
+here::here()
+WashingtonDataOSK<- read.csv(here::here("prac2homework_data","county_only.csv"), 
+                           header = TRUE, sep = ",",  
+                           encoding = "latin1")
+
+install.packages("tidyr")
+library(tidyr)
+library(dplyr)
+
+class(WashingtonDataOSK)
+Datatypelist <- WashingtonDataOSK %>% 
+  summarise_all(class) %>%
+  pivot_longer(everything(), 
+               names_to="All_variables", 
+               values_to="Variable_class")
+print(Datatypelist,n=20)
+summary(df)
+WashingtonDataOSK%>%
+  colnames()%>%
+  # just look at the head, top5
+  head()
+
+AverageMetStandard<- WashingtonDataOSK %>% 
+  filter(average_percent_met_standard>0.482845513)
+AverageNotMetStandard<- WashingtonDataOSK %>% 
+  filter(average_percent_met_standard<0.482845513)
+
+library(stringr)
+
+#install the package for producing a map,
+install.packages(c("tmap"))
+
+# might also need these ones
+install.packages(c("tmaptools", "sf"))
+
+#Load Packages (ignore any error messages about being built under a 
+#different R version):
+library(tmap)
+library(tmaptools)
+library(sf)
+
+# this will take a few minutes
+# geojson in local folder
+file.exists(here::here("prac2homework_data",
+                       "Washington_Counties_with_Natural_Shoreline___washsh_area.geojson"))
+
+# shapefile in local folder
+WH <- st_read(here::here("prac2homework_data",
+                                   "Washington_Counties_with_Natural_Shoreline___washsh_area.shp"))
+                         
+WashingtonMap <- qtm(WH)
+WashingtonMap
+
+
+names(WH)
+names(WashingtonDataOSK)
+
+
+library(janitor)
+WashingtonDataOSK <- clean_names(WashingtonDataOSK)
+
+#WH is the data we read in straight from the web
+DistrictDataMap <- WH %>%
+  clean_names() %>%
+  merge(.,
+        WashingtonDataOSK, 
+        by.x = "objectid",  
+        by.y = "objectid", 
+        no.dups = TRUE) %>%
+  distinct(objectid,
+           .keep_all = TRUE)
+
+# Add a new column to indicate if county average is above or below state average
+DistrictDataMap <- DistrictDataMap %>%
+  mutate(above_state_average = ifelse(average_percent_met_standard > 0.482845513,
+                                      "Above", "Below"))
+
+install.packages("tmap")
+
+library(tmap)
+library(tmaptools)
+tmap_mode("plot")
+qtm(DistrictDataMap, 
+    fill = "above_state_average")
+
+library(sf)
+library("OpenStreetMap")
+#create a box (termed bounding box) around London using the st_box()
+tmapwashington <-  DistrictDataMap%>%
+  st_bbox(.) %>% 
+  tmaptools::read_osm(., type = "osm", zoom = NULL)
+
+tmap_mode("plot")
+tm_shape(DistrictDataMap) + 
+  tm_polygons("above_state_average", 
+              style = "fixed",  # 使用手动固定分段
+              breaks = c(min(DistrictDataMap$above_state_average), 0, max(DistrictDataMap$above_state_average)),  # 将数据分成 above 和 below
+              palette = c("darkred", "lightcoral"), 
+              midpoint=NA,
+              title="above or lower than the average percent in the State",
+              alpha = 0.8) + 
+  tm_basemap(server = "OpenStreetMap") +
+  tm_compass(position = c("left", "bottom"),type = "arrow") + 
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(title = "aboveorbelow_state_average")
+
+tmap_mode("view")
+tm_shape(DistrictDataMap) + 
+  tm_polygons("above_state_average", 
+              style = "fixed",  # 使用手动固定分段
+              breaks = c(min(DistrictDataMap$above_state_average), 0, max(DistrictDataMap$above_state_average)),  # 将数据分成 above 和 below
+              palette = c("darkred", "lightcoral"), 
+              midpoint=NA,
+              title="above or lower than the average percent in the State",
+              alpha = 0.8) + 
+  tm_basemap(server = "OpenStreetMap") +
+  tm_compass(position = c("left", "bottom"),type = "arrow") + 
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(title = "aboveorbelow_state_average")
