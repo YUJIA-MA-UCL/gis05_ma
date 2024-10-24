@@ -1,0 +1,66 @@
+---
+title: "prac4_homework"
+output: html_document
+date: "2024-10-24"
+---
+##library 
+```{r}
+library(tmap)
+library(tmaptools)
+library(sf)
+library(here)
+library(dplyr)
+library(countrycode)
+library(janitor)
+```
+
+## open the geojson file
+```{r}
+worldcities <- st_read("World_Countries_(Generalized)_9029012925078512962.geojson")
+qtm(worldcities)
+```
+
+## open .csv file and tidy the data
+
+```{r}
+here::here()
+worldcities_gii<- read.csv(here::here("Composite_indices_complete_time_series.csv"), 
+                         header = TRUE, sep = ",",  
+                         encoding = "UTF-8")
+
+gii_data <- worldcities_gii %>%
+  select(iso3, country, matches("^gii_201[0-9]$"))
+
+gii_data$iso2 <- countrycode(gii_data$iso3, origin = 'iso3c', destination = 'iso2c')
+head(gii_data)
+```
+## calculate the data
+```{r}
+gii_data <- gii_data %>%
+  mutate(diff = gii_2019 - gii_2010)
+gii_diff <- gii_data %>%
+  select(iso2, diff)
+head(gii_diff)
+```
+
+```{r}
+gii_diff <- clean_names(gii_diff)
+WorldDataMap <- worldcities %>%
+  clean_names()%>%
+  merge(.,
+        gii_diff, 
+        by.x="iso", 
+        by.y="iso2",
+        no.dups = TRUE)%>%
+  distinct(.,iso,
+           .keep_all = TRUE)
+
+library(ggplot2)
+
+ggplot(WorldDataMap) +
+  geom_sf(aes(fill = diff)) + 
+  scale_fill_gradient2(low = "blue", mid = "lightblue", high = "red", 
+                       midpoint = 0, na.value = "grey90") 
+  theme_minimal() +
+  ggtitle("GII Data Mapped onto World Cities for difference between 2010 and 2019")
+```
